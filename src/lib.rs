@@ -18,4 +18,12 @@ pub struct Torrent {
     pub info: Info,
     #[serde(rename = "announce")]
     pub announce_url: String,
+    pub hash: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RequestTorrent {
+    pub info: Info,
+    #[serde(rename = "announce")]
+    pub announce_url: String,
 }
