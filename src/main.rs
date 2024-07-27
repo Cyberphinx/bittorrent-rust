@@ -1,6 +1,6 @@
 use std::env;
 
-use bittorrent_rust::decode::decode_bencoded_value;
+use bittorrent_rust::decode::Decoder;
 
 fn main() {
     tracing_subscriber::fmt().init();
@@ -12,7 +12,7 @@ fn main() {
         println!("Decode command started");
 
         let encoded_value = &args[2];
-        let decoded_value = decode_bencoded_value(encoded_value).unwrap();
+        let decoded_value = Decoder::decode_bencoded_value(encoded_value).unwrap();
         tracing::info!("{}", decoded_value);
     } else {
         println!("unknown command: {}", args[1]);

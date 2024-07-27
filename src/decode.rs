@@ -1,32 +1,32 @@
 use eyre::Result;
 
-/// This function decodes bencoded (bee-encoded) strings
-///
-/// # Arguents
-///
-/// * `5:hello`
-///
-/// # Returns
-///
-/// The decoded string of `5:hello` is `hello`
-///
-/// 1. Integers: Encoded as i<integer>e. For example, the integer 42 is encoded as i42e.
-///
-/// 2. Byte Strings: Encoded as <length>:<contents>. For example, the string "spam" is encoded as 4:spam.
-///
-/// 3. Lists: Encoded as l<contents>e. For example, a list containing the string "spam" and the integer 42 is encoded as l4:spami42ee.
-///
-/// 4. Dictionaries: Encoded as d<contents>e. For example, a dictionary with keys "bar" and "foo" and values "spam" and 42, respectively, is encoded as d3:bar4:spam3:fooi42ee
-///
-pub fn decode_bencoded_value(encoded_value: &str) -> Result<serde_json::Value> {
-    let value: serde_bencode::value::Value = serde_bencode::from_str(encoded_value)?;
-
-    Decoder::convert(value)
-}
-
-struct Decoder;
+pub struct Decoder;
 
 impl Decoder {
+    /// This function decodes bencoded (bee-encoded) strings
+    ///
+    /// # Arguents
+    ///
+    /// * `5:hello`
+    ///
+    /// # Returns
+    ///
+    /// The decoded string of `5:hello` is `hello`
+    ///
+    /// 1. Integers: Encoded as i<integer>e. For example, the integer 42 is encoded as i42e.
+    ///
+    /// 2. Byte Strings: Encoded as <length>:<contents>. For example, the string "spam" is encoded as 4:spam.
+    ///
+    /// 3. Lists: Encoded as l<contents>e. For example, a list containing the string "spam" and the integer 42 is encoded as l4:spami42ee.
+    ///
+    /// 4. Dictionaries: Encoded as d<contents>e. For example, a dictionary with keys "bar" and "foo" and values "spam" and 42, respectively, is encoded as d3:bar4:spam3:fooi42ee
+    ///
+    pub fn decode_bencoded_value(encoded_value: &str) -> Result<serde_json::Value> {
+        let value: serde_bencode::value::Value = serde_bencode::from_str(encoded_value)?;
+
+        Decoder::convert(value)
+    }
+
     fn convert(value: serde_bencode::value::Value) -> Result<serde_json::Value> {
         match value {
             serde_bencode::value::Value::Bytes(b) => {
@@ -52,9 +52,11 @@ impl Decoder {
 
             serde_bencode::value::Value::Dict(d) => {
                 // Decoding bencoded dictionary
+                // Iterating over each key-value pair in the dictionary
                 let object = d
                     .into_iter()
                     .map(|(k, v)| {
+                        // For each pair, it converts the key to a string and recursively converts the value using this function
                         let key = String::from_utf8(k)?;
 
                         let value = Decoder::convert(v)?;
@@ -77,28 +79,28 @@ mod tests {
     #[test]
     fn decode_bencoded_string() {
         let encoded_value = "5:hello";
-        let decoded_value = decode_bencoded_value(encoded_value).unwrap();
+        let decoded_value = Decoder::decode_bencoded_value(encoded_value).unwrap();
         assert_eq!(decoded_value, "hello");
     }
 
     #[test]
     fn decode_bencoded_integer() {
         let encoded_value = "i52e";
-        let decoded_value = decode_bencoded_value(encoded_value).unwrap();
+        let decoded_value = Decoder::decode_bencoded_value(encoded_value).unwrap();
         assert_eq!(decoded_value, 52);
     }
 
     #[test]
     fn decode_bencoded_list() {
         let encoded_value = "l5:helloi52ee";
-        let decoded_value = decode_bencoded_value(encoded_value).unwrap();
+        let decoded_value = Decoder::decode_bencoded_value(encoded_value).unwrap();
         assert_eq!(decoded_value, json!(("hello", 52)));
     }
 
     #[test]
     fn decode_bencoded_distionary() {
         let encoded_value = "d3:foo3:bar5:helloi52ee";
-        let decoded_value = decode_bencoded_value(encoded_value).unwrap();
+        let decoded_value = Decoder::decode_bencoded_value(encoded_value).unwrap();
         assert_eq!(decoded_value, json!({"foo":"bar","hello":52}));
     }
 }
