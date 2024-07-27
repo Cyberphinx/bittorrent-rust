@@ -85,22 +85,22 @@ mod tests {
 
     #[test]
     fn decode_bencoded_integer() {
-        let encoded_value = "i52e";
+        let encoded_value = "i42e";
         let decoded_value = Decoder::decode_bencoded_value(encoded_value).unwrap();
-        assert_eq!(decoded_value, 52);
+        assert_eq!(decoded_value, 42);
     }
 
     #[test]
     fn decode_bencoded_list() {
-        let encoded_value = "l5:helloi52ee";
+        let encoded_value = "l5:helloi42ee";
         let decoded_value = Decoder::decode_bencoded_value(encoded_value).unwrap();
-        assert_eq!(decoded_value, json!(("hello", 52)));
+        assert_eq!(decoded_value, json!(("hello", 42)));
     }
 
     #[test]
     fn decode_bencoded_distionary() {
-        let encoded_value = "d3:foo3:bar5:helloi52ee";
+        let encoded_value = "d3:foo3:bar5:helloi42ee";
         let decoded_value = Decoder::decode_bencoded_value(encoded_value).unwrap();
-        assert_eq!(decoded_value, json!({"foo":"bar","hello":52}));
+        assert_eq!(decoded_value, json!({"foo":"bar","hello":42}));
     }
 }
