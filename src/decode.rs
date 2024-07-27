@@ -22,46 +22,32 @@ use serde_json::{json, Value};
 pub fn decode_bencoded_value(encoded_value: &str) -> Result<Value> {
     let first_char = encoded_value.chars().next().unwrap();
 
-    if first_char.is_ascii_digit() {
-        // Example: "5:hello" -> "hello"
-        if let Some((length, value)) = encoded_value.split_once(':') {
+    match first_char {
+        c if c.is_ascii_digit() => {
+            let (length, value) = Decoder::split_string_by_colon(encoded_value)?;
             Decoder::decode_string(length, value)
-        } else {
-            Err(eyre!(
-                "Encoded value doesn't contain valid values: {}",
-                encoded_value
-            ))
         }
-    } else if first_char == 'i' {
-        // Example: "i45e" -> 45
-        Decoder::decode_integer(encoded_value)
-    } else if first_char == 'l' {
-        // Example: "l5:helloi52ee"
-        if let Some((length, value)) = encoded_value.split_once(':') {
-            let mut splitted_value = value.split('i');
-            let string_value = splitted_value.next();
-            let number_value = splitted_value.next();
-            if let (Some(string_value), Some(number_value)) = (string_value, number_value) {
-                let s_val = Decoder::decode_string(length, string_value)?;
-                let n_val = Decoder::decode_integer(number_value)?;
-                Ok(json!((s_val, n_val)))
-            } else {
-                Err(eyre!(
-                    "Array doesn't contain valid values: {}",
-                    encoded_value
-                ))
-            }
-        } else {
-            Err(eyre!("Array does not seem to be a list"))
+        'i' => Decoder::decode_integer(encoded_value),
+        'l' => {
+            let (length, value) = Decoder::split_string_by_colon(encoded_value)?;
+            Decoder::decode_list(length, value)
         }
-    } else {
-        Err(eyre!("Unhandled encoded value: {}", encoded_value))
+        _ => Err(eyre!("Unhandled encoded value: {}", encoded_value)),
     }
 }
 
 struct Decoder;
 
 impl Decoder {
+    fn split_string_by_colon(encoded_value: &str) -> Result<(&str, &str)> {
+        encoded_value.split_once(':').ok_or_else(|| {
+            eyre!(
+                "Could not split the encoded value into two values with a colon in-between: {}",
+                encoded_value
+            )
+        })
+    }
+
     fn decode_string(length: &str, value: &str) -> Result<Value> {
         // Parse the length part to an integer, filtering out non-numeric values
         if let Ok(expected_length) = length
@@ -88,12 +74,23 @@ impl Decoder {
         }
     }
 
-    fn decode_integer(value: &str) -> Result<Value> {
-        let value = value
+    fn decode_integer(encoded_value: &str) -> Result<Value> {
+        let value = encoded_value
             .chars()
             .filter(|c| c.is_ascii_digit())
             .collect::<String>();
         Ok(Value::String(value))
+    }
+
+    fn decode_list(length: &str, value: &str) -> Result<Value> {
+        if let Some((string_value, number_value)) = value.split_once('i') {
+            Ok(json!((
+                Decoder::decode_string(length, string_value)?,
+                Decoder::decode_integer(number_value)?
+            )))
+        } else {
+            Err(eyre!("Array doesn't contain valid values: {}", value))
+        }
     }
 }
 
