@@ -3,14 +3,13 @@ use std::{
     io::{Read, Write},
 };
 
-use base64::{engine::general_purpose, Engine as _};
 use eyre::Result;
 use sha1::{Digest, Sha1};
 
 use crate::{Info, Torrent};
 
-pub struct Encode;
-impl Encode {
+pub struct Encoder;
+impl Encoder {
     pub fn encode_file(file_path: &str, announce_url: &str, piece_length: i32) -> Result<()> {
         // Read the file
         let mut file = File::open(file_path)?;
@@ -28,9 +27,9 @@ impl Encode {
         // Create the torrent info
         let info = Info {
             name: file_path.to_string(),
-            length: buffer.len() as u64,
-            piece_length: piece_length as u64,
-            pieces: general_purpose::STANDARD.encode(pieces),
+            length: buffer.len() as i64,
+            piece_length: piece_length as i64,
+            pieces,
         };
 
         // Create the torrent

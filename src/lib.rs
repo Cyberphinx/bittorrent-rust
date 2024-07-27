@@ -6,16 +6,16 @@ pub mod parse;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Info {
-    name: String,
-    length: u64,
+    pub name: String,
+    pub length: i64,
     #[serde(rename = "piece length")]
-    piece_length: u64,
-    pieces: String,
+    pub piece_length: i64,
+    pub pieces: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Torrent {
-    info: Info,
+    pub info: Info,
     #[serde(rename = "announce")]
-    announce_url: String,
+    pub announce_url: String,
 }

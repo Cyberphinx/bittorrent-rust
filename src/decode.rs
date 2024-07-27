@@ -1,4 +1,6 @@
-use eyre::Result;
+use std::collections::HashMap;
+
+use eyre::{eyre, Result};
 
 pub struct Decoder;
 
@@ -68,6 +70,58 @@ impl Decoder {
                 Ok(serde_json::Value::Object(object))
             }
         }
+    }
+
+    pub fn extract_string(
+        key: &str,
+        d: &HashMap<Vec<u8>, serde_bencode::value::Value>,
+    ) -> Result<String> {
+        d.get(key.as_bytes())
+            .and_then(|v| match v {
+                serde_bencode::value::Value::Bytes(b) => String::from_utf8(b.clone()).ok(),
+
+                _ => None,
+            })
+            .ok_or(eyre!("Missing field: {}", key))
+    }
+
+    pub fn extract_bytes(
+        key: &str,
+        d: &HashMap<Vec<u8>, serde_bencode::value::Value>,
+    ) -> Result<Vec<u8>> {
+        d.get(key.as_bytes())
+            .and_then(|v| match v {
+                serde_bencode::value::Value::Bytes(b) => Some(b.clone()),
+
+                _ => None,
+            })
+            .ok_or(eyre!("Missing field: {}", key))
+    }
+
+    pub fn extract_dict(
+        key: &str,
+        d: &HashMap<Vec<u8>, serde_bencode::value::Value>,
+    ) -> Result<HashMap<Vec<u8>, serde_bencode::value::Value>> {
+        d.get(key.as_bytes())
+            .and_then(|v| match v {
+                serde_bencode::value::Value::Dict(d) => Some(d.clone()),
+
+                _ => None,
+            })
+            .ok_or(eyre!("Missing field: {}", key))
+    }
+
+    pub fn extract_int(
+        key: &str,
+        d: &HashMap<Vec<u8>, serde_bencode::value::Value>,
+    ) -> Result<i64> {
+        d.get(key.as_bytes())
+            .and_then(|v| match v {
+                serde_bencode::value::Value::Int(i) => Some(*i),
+
+                _ => None,
+            })
+            .ok_or(eyre!("Missing field: {}", key))
     }
 }
 
