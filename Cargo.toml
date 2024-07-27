@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.86"
 bytes = "1.6.1"
 clap = { version = "4.5.10", features = ["derive"] }
+eyre = "0.6.12"
 hex = "0.4.3"
 regex = "1.10.5"
 reqwest = { version = "0.12.5", features = ["json", "blocking"] }
@@ -19,3 +19,5 @@ sha1 = "0.10.6"
 tempfile = "3.10.1"
 thiserror = "1.0.63"
 tokio = { version = "1.39.1", features = ["full"] }
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"

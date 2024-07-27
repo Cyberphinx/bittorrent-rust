@@ -1,1 +1,1 @@
-A project to build a simple bittorrent in rust
+A project to build a simple BitTorrent in rust
