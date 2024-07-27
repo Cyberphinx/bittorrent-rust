@@ -1,5 +1,4 @@
-use eyre::{eyre, Result};
-use serde_json::{json, Value};
+use eyre::Result;
 
 /// This function decodes bencoded (bee-encoded) strings
 ///
@@ -19,77 +18,53 @@ use serde_json::{json, Value};
 ///
 /// 4. Dictionaries: Encoded as d<contents>e. For example, a dictionary with keys "bar" and "foo" and values "spam" and 42, respectively, is encoded as d3:bar4:spam3:fooi42ee
 ///
-pub fn decode_bencoded_value(encoded_value: &str) -> Result<Value> {
-    let first_char = encoded_value.chars().next().unwrap();
+pub fn decode_bencoded_value(encoded_value: &str) -> Result<serde_json::Value> {
+    let value: serde_bencode::value::Value = serde_bencode::from_str(encoded_value)?;
 
-    match first_char {
-        c if c.is_ascii_digit() => {
-            let (length, value) = Decoder::split_string_by_colon(encoded_value)?;
-            Decoder::decode_string(length, value)
-        }
-        'i' => Decoder::decode_integer(encoded_value),
-        'l' => {
-            let (length, value) = Decoder::split_string_by_colon(encoded_value)?;
-            Decoder::decode_list(length, value)
-        }
-        _ => Err(eyre!("Unhandled encoded value: {}", encoded_value)),
-    }
+    Decoder::convert(value)
 }
 
 struct Decoder;
 
 impl Decoder {
-    fn split_string_by_colon(encoded_value: &str) -> Result<(&str, &str)> {
-        encoded_value.split_once(':').ok_or_else(|| {
-            eyre!(
-                "Could not split the encoded value into two values with a colon in-between: {}",
-                encoded_value
-            )
-        })
-    }
-
-    fn decode_string(length: &str, value: &str) -> Result<Value> {
-        // Parse the length part to an integer, filtering out non-numeric values
-        if let Ok(expected_length) = length
-            .chars()
-            .filter(|c| c.is_ascii_digit())
-            .collect::<String>()
-            .parse::<usize>()
-        {
-            // Check if the length of the value matches the expected length
-            if value.len() == expected_length {
-                Ok(Value::String(value.to_string()))
-            } else {
-                Err(eyre::eyre!(
-                    "Length of the value '{}' does not match the expected length {}",
-                    value,
-                    expected_length
-                ))
+    fn convert(value: serde_bencode::value::Value) -> Result<serde_json::Value> {
+        match value {
+            serde_bencode::value::Value::Bytes(b) => {
+                // Decoding bencoded string
+                let string = String::from_utf8(b)?;
+                Ok(serde_json::Value::String(string))
             }
-        } else {
-            Err(eyre::eyre!(
-                "Failed to parse the length part '{}' as an integer",
-                length
-            ))
-        }
-    }
 
-    fn decode_integer(encoded_value: &str) -> Result<Value> {
-        let value = encoded_value
-            .chars()
-            .filter(|c| c.is_ascii_digit())
-            .collect::<String>();
-        Ok(Value::String(value))
-    }
+            serde_bencode::value::Value::Int(i) => {
+                // Decoding bencoded integer
+                Ok(serde_json::Value::Number(serde_json::Number::from(i)))
+            }
 
-    fn decode_list(length: &str, value: &str) -> Result<Value> {
-        if let Some((string_value, number_value)) = value.split_once('i') {
-            Ok(json!((
-                Decoder::decode_string(length, string_value)?,
-                Decoder::decode_integer(number_value)?
-            )))
-        } else {
-            Err(eyre!("Array doesn't contain valid values: {}", value))
+            serde_bencode::value::Value::List(l) => {
+                // Decoding bencoded list
+                let array = l
+                    .into_iter()
+                    .map(Decoder::convert)
+                    .collect::<Result<Vec<serde_json::Value>>>()?;
+
+                Ok(serde_json::Value::Array(array))
+            }
+
+            serde_bencode::value::Value::Dict(d) => {
+                // Decoding bencoded dictionary
+                let object = d
+                    .into_iter()
+                    .map(|(k, v)| {
+                        let key = String::from_utf8(k)?;
+
+                        let value = Decoder::convert(v)?;
+
+                        Ok((key, value))
+                    })
+                    .collect::<Result<serde_json::Map<String, serde_json::Value>>>()?;
+
+                Ok(serde_json::Value::Object(object))
+            }
         }
     }
 }
@@ -97,6 +72,7 @@ impl Decoder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn decode_bencoded_string() {
@@ -109,13 +85,20 @@ mod tests {
     fn decode_bencoded_integer() {
         let encoded_value = "i52e";
         let decoded_value = decode_bencoded_value(encoded_value).unwrap();
-        assert_eq!(decoded_value, "52");
+        assert_eq!(decoded_value, 52);
     }
 
     #[test]
     fn decode_bencoded_list() {
         let encoded_value = "l5:helloi52ee";
         let decoded_value = decode_bencoded_value(encoded_value).unwrap();
-        assert_eq!(decoded_value, json!(("hello", "52")));
+        assert_eq!(decoded_value, json!(("hello", 52)));
+    }
+
+    #[test]
+    fn decode_bencoded_distionary() {
+        let encoded_value = "d3:foo3:bar5:helloi52ee";
+        let decoded_value = decode_bencoded_value(encoded_value).unwrap();
+        assert_eq!(decoded_value, json!({"foo":"bar","hello":52}));
     }
 }
