@@ -20,7 +20,9 @@ fn main() -> Result<()> {
         let torrent = Parser::parse_torrent_file(file_name)?;
         println!("Tracker URL: {}", torrent.announce_url);
         println!("Length: {}", torrent.info.length);
-        println!("Hash: {}", torrent.hash);
+        println!("Info Hash: {}", torrent.hash);
+        println!("Piece Length: {}", torrent.info.piece_length);
+        println!("Piece Hash: {}", hex::encode(torrent.info.pieces));
     } else if command == "encode" {
         // let file_path = &args[2];
         let file_path = "examples/example_file.txt";

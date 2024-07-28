@@ -14,7 +14,7 @@ pub struct Info {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Torrent {
+pub struct ResponseTorrent {
     pub info: Info,
     #[serde(rename = "announce")]
     pub announce_url: String,

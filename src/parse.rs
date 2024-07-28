@@ -3,11 +3,11 @@ use std::path::PathBuf;
 use eyre::{eyre, ContextCompat, Result};
 use sha1::{Digest, Sha1};
 
-use crate::{decode::Decoder, Info, Torrent};
+use crate::{decode::Decoder, Info, ResponseTorrent};
 
 pub struct Parser;
 impl Parser {
-    pub fn parse_torrent_file<T>(file_path: T) -> Result<Torrent>
+    pub fn parse_torrent_file<T>(file_path: T) -> Result<ResponseTorrent>
     where
         T: Into<PathBuf>,
     {
@@ -22,7 +22,7 @@ impl Parser {
                 let info_hash = d.get(b"info".as_ref()).context("no info")?;
                 let hash = hex::encode(Sha1::digest(serde_bencode::to_bytes(info_hash)?));
 
-                Ok(Torrent {
+                Ok(ResponseTorrent {
                     announce_url: announce,
                     info: Info {
                         length: Decoder::extract_int("length", &info)?,
