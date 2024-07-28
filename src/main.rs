@@ -1,9 +1,10 @@
 use eyre::Result;
 use std::env;
 
-use bittorrent_rust::{decode::Decoder, encode::Encoder, parse::Parser};
+use bittorrent_rust::{decode::Decoder, encode::Encoder, parse::Parser, peers::Discover};
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     tracing_subscriber::fmt().init();
 
     let args: Vec<String> = env::args().collect();
@@ -30,6 +31,10 @@ fn main() -> Result<()> {
         let piece_length = 512 * 1024; // 512 KB
 
         Encoder::encode_file(file_path, announce_url, piece_length)?;
+    } else if command == "peers" {
+        let file_path = &args[2];
+
+        Discover::discover_peers(file_path).await?;
     } else {
         println!("unknown command: {}", args[1]);
     }

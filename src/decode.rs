@@ -29,6 +29,12 @@ impl Decoder {
         Decoder::convert(value)
     }
 
+    pub fn decode_bencoded_bytes(encoded_value: &[u8]) -> Result<serde_json::Value> {
+        let value: serde_bencode::value::Value = serde_bencode::from_bytes(encoded_value)?;
+
+        Decoder::convert(value)
+    }
+
     fn convert(value: serde_bencode::value::Value) -> Result<serde_json::Value> {
         match value {
             serde_bencode::value::Value::Bytes(b) => {

@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use bytes::Bytes;
 use eyre::{eyre, ContextCompat, Result};
 use sha1::{Digest, Sha1};
 
@@ -36,6 +37,8 @@ impl Parser {
             _ => Err(eyre!("Incorrect format, required dict")),
         }
     }
+
+    pub fn parse_element(element: Bytes) {}
 }
 
 #[cfg(test)]
