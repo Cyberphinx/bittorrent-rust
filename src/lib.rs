@@ -9,6 +9,7 @@ use serde::{
 };
 
 pub mod decode;
+pub mod downloader;
 pub mod encode;
 pub mod handshake;
 pub mod parse;
