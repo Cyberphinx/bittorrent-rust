@@ -10,6 +10,7 @@ use serde::{
 
 pub mod decode;
 pub mod encode;
+pub mod handshake;
 pub mod parse;
 pub mod peers;
 
@@ -112,12 +113,4 @@ impl Serialize for Peers {
 
         serializer.serialize_bytes(&single_slice)
     }
-}
-
-pub struct Handshake {
-    pub length: u8,
-    pub bittorrent: [u8; 19],
-    pub reserved: [u8; 8],
-    pub info_hash: [u8; 20],
-    pub peer_id: [u8; 20],
 }

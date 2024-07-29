@@ -1,57 +1,78 @@
-pub struct Peer;
-use std::{net::UdpSocket, ops::Deref, time::Duration};
+use core::fmt;
+use std::{
+    collections::HashMap,
+    net::{SocketAddrV4, UdpSocket},
+    str::FromStr,
+    time::Duration,
+};
 
 use eyre::{eyre, Context, ContextCompat, Result};
 use reqwest::Client;
-use serde_bencode::to_bytes;
-use sha1::{Digest, Sha1};
 use url::form_urlencoded;
 
-use crate::{decode::Decoder, TrackerRequest, TrackerResponse};
+use crate::{decode::Decoder, parse::Parser, TrackerRequest, TrackerResponse};
+
+pub struct Peer(pub SocketAddrV4);
+
+// Implement the FromStr trait for Peer
+impl FromStr for Peer {
+    type Err = std::net::AddrParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Parse the string into an Ipv4Addr
+        let addr = SocketAddrV4::from_str(s)?;
+        // Wrap the Ipv4Addr in a Peer and return it
+        Ok(Peer(addr))
+    }
+}
+
+// Implement Display trait for Peer to enable easy printing
+impl fmt::Display for Peer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl Peer {
-    pub async fn discover_peers(file_path: &str) -> Result<()> {
-        let content = std::fs::read(file_path)?;
-        let value: serde_bencode::value::Value = serde_bencode::from_bytes(content.as_slice())?;
-        match value {
-            serde_bencode::value::Value::Dict(d) => {
-                let announce = Decoder::extract_string("announce", &d)?;
-                let info = Decoder::extract_dict("info", &d)?;
+    pub async fn discover_peers(
+        dictionary: HashMap<Vec<u8>, serde_bencode::value::Value>,
+    ) -> Result<()> {
+        let announce = Decoder::extract_string("announce", &dictionary)?;
+        let info = Decoder::extract_dict("info", &dictionary)?;
 
-                // Extract the info hash into &[u8] from the dictionary
-                let info_hash_value = d.get(b"info".as_ref()).context("no info")?;
-                let serialized_hash = to_bytes(info_hash_value)?;
-                let sha1_hash = Sha1::digest(serialized_hash);
-                let sha1_hash_bytes = sha1_hash.deref();
+        // Extract the info hash into &[u8] from the dictionary
+        let info_hash_value = dictionary.get(b"info".as_ref()).context("no info")?;
+        let info_hash = Parser::get_info_hash_array(info_hash_value)?;
 
-                // Compose the tracker request object
-                let request = TrackerRequest {
-                    peer_id: String::from("00112233445566778899"),
-                    port: 6881,
-                    uploaded: 0,
-                    downloaded: 0,
-                    left: Decoder::extract_int("piece length", &info)? as usize,
-                    compact: 1,
-                };
+        // Compose the tracker request object
+        let request = TrackerRequest {
+            peer_id: String::from("00112233445566778899"),
+            port: 6881,
+            uploaded: 0,
+            downloaded: 0,
+            left: Decoder::extract_int("piece length", &info)? as usize,
+            compact: 1,
+        };
 
-                let url_params = serde_urlencoded::to_string(&request)
-                    .context("url-encode tracker parameters")?;
+        let url_params =
+            serde_urlencoded::to_string(&request).context("url-encode tracker parameters")?;
 
-                if announce.starts_with("udp://") {
-                    // UDP protocol
-                    Peer::query_udp_tracker(&announce, &request, sha1_hash_bytes).await?;
-                } else {
-                    // HTTP or HTTPS protocols
-                    Peer::query_http_tracker(&announce, &url_params, sha1_hash_bytes).await?;
-                }
-
-                Ok(())
-            }
-            _ => Err(eyre!("Incorrect format, required dict")),
+        if announce.starts_with("udp://") {
+            // UDP protocol
+            Peer::query_udp_tracker(&announce, &request, &info_hash).await?;
+        } else {
+            // HTTP or HTTPS protocols
+            Peer::query_http_tracker(&announce, &url_params, &info_hash).await?;
         }
+
+        Ok(())
     }
 
-    async fn query_http_tracker(announce: &str, url_params: &str, info_hash: &[u8]) -> Result<()> {
+    async fn query_http_tracker(
+        announce: &str,
+        url_params: &str,
+        info_hash: &[u8; 20],
+    ) -> Result<()> {
         // URL-encode the byte array
         let url_encoded_info_hash: String = form_urlencoded::byte_serialize(info_hash).collect();
 
@@ -82,7 +103,7 @@ impl Peer {
     async fn query_udp_tracker(
         announce: &str,
         _request: &TrackerRequest,
-        _info_hash: &[u8],
+        _info_hash: &[u8; 20],
     ) -> Result<()> {
         let announce = announce.trim_start_matches("udp://");
         let parts: Vec<&str> = announce.split(':').collect();
@@ -123,6 +144,4 @@ impl Peer {
 
         Ok(())
     }
-
-    pub async fn peer_handshake() {}
 }
