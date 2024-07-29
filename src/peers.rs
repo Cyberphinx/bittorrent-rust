@@ -1,12 +1,13 @@
 pub struct Peer;
-use std::{net::UdpSocket, time::Duration};
+use std::{net::UdpSocket, ops::Deref, time::Duration};
 
 use eyre::{eyre, Context, ContextCompat, Result};
 use reqwest::Client;
 use serde_bencode::to_bytes;
+use sha1::{Digest, Sha1};
 use url::form_urlencoded;
 
-use crate::{decode::Decoder, TrackerRequest};
+use crate::{decode::Decoder, TrackerRequest, TrackerResponse};
 
 impl Peer {
     pub async fn discover_peers(file_path: &str) -> Result<()> {
@@ -16,8 +17,14 @@ impl Peer {
             serde_bencode::value::Value::Dict(d) => {
                 let announce = Decoder::extract_string("announce", &d)?;
                 let info = Decoder::extract_dict("info", &d)?;
-                let info_hash = d.get(b"info".as_ref()).context("no info")?;
 
+                // Extract the info hash into &[u8] from the dictionary
+                let info_hash_value = d.get(b"info".as_ref()).context("no info")?;
+                let serialized_hash = to_bytes(info_hash_value)?;
+                let sha1_hash = Sha1::digest(serialized_hash);
+                let sha1_hash_bytes = sha1_hash.deref();
+
+                // Compose the tracker request object
                 let request = TrackerRequest {
                     peer_id: String::from("00112233445566778899"),
                     port: 6881,
@@ -30,14 +37,12 @@ impl Peer {
                 let url_params = serde_urlencoded::to_string(&request)
                     .context("url-encode tracker parameters")?;
 
-                let serialized_hash = to_bytes(info_hash)?;
-
-                let bytes: &[u8] = &serialized_hash;
-
                 if announce.starts_with("udp://") {
-                    Peer::query_udp_tracker(&announce, &request, bytes).await?;
+                    // UDP protocol
+                    Peer::query_udp_tracker(&announce, &request, sha1_hash_bytes).await?;
                 } else {
-                    Peer::query_http_tracker(&announce, &url_params, bytes).await?;
+                    // HTTP or HTTPS protocols
+                    Peer::query_http_tracker(&announce, &url_params, sha1_hash_bytes).await?;
                 }
 
                 Ok(())
@@ -47,13 +52,13 @@ impl Peer {
     }
 
     async fn query_http_tracker(announce: &str, url_params: &str, info_hash: &[u8]) -> Result<()> {
+        // URL-encode the byte array
+        let url_encoded_info_hash: String = form_urlencoded::byte_serialize(info_hash).collect();
+
         let tracker_url = format!(
             "{}?{}&info_hash={}",
-            announce,
-            url_params,
-            &form_urlencoded::byte_serialize(info_hash).collect::<String>()
+            announce, url_params, url_encoded_info_hash
         );
-        tracing::info!("Tracker url: {}", &tracker_url);
 
         let client = Client::new();
         let response = client
@@ -62,19 +67,15 @@ impl Peer {
             .await
             .context("query tracker")?;
 
-        tracing::info!("Response: {:#?}", &response);
-
         let response_bytes = response.bytes().await.context("fetch tracker response")?;
 
-        tracing::info!("Response bytes: {:#?}", &response_bytes);
+        let response: TrackerResponse =
+            serde_bencode::from_bytes(&response_bytes).context("parse tracker response")?;
 
-        // let response: TrackerResponse =
-        //     from_bytes(&response_bytes).context("parse tracker response")?;
-
-        // println!("Interval: {}", response.interval);
-        // for peer in &response.peers.0 {
-        //     println!("{}:{}", peer.ip, peer.port);
-        // }
+        println!("Interval: {}", response.interval);
+        for peer in &response.peers.0 {
+            println!("{}:{}", peer.ip(), peer.port());
+        }
         Ok(())
     }
 
