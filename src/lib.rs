@@ -1,5 +1,3 @@
-use std::net::SocketAddrV4;
-
 use serde::{Deserialize, Serialize};
 
 pub mod decode;
@@ -17,7 +15,7 @@ pub struct Info {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ResponseTorrent {
+pub struct TorrentResponse {
     pub info: Info,
     #[serde(rename = "announce")]
     pub announce_url: String,
@@ -25,7 +23,7 @@ pub struct ResponseTorrent {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct RequestTorrent {
+pub struct TorrentRequest {
     pub info: Info,
     #[serde(rename = "announce")]
     pub announce_url: String,
@@ -43,9 +41,23 @@ pub struct TrackerRequest {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct TrackerResponse {
-    pub interval: usize,
+    pub interval: u32,
     pub peers: Peers,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct Peers(pub Vec<SocketAddrV4>);
+pub struct Peers(pub Vec<Peer>);
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct Peer {
+    pub ip: String,
+    pub port: u16,
+}
+
+pub struct Handshake {
+    pub length: u8,
+    pub bittorrent: [u8; 19],
+    pub reserved: [u8; 8],
+    pub info_hash: [u8; 20],
+    pub peer_id: [u8; 20],
+}

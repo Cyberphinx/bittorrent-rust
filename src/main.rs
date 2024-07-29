@@ -1,7 +1,7 @@
 use eyre::Result;
 use std::env;
 
-use bittorrent_rust::{decode::Decoder, encode::Encoder, parse::Parser, peers::Discover};
+use bittorrent_rust::{decode::Decoder, encode::Encoder, parse::Parser, peers::Peer};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -23,7 +23,7 @@ async fn main() -> Result<()> {
         println!("Length: {}", torrent.info.length);
         println!("Info Hash: {}", torrent.hash);
         println!("Piece Length: {}", torrent.info.piece_length);
-        println!("Piece Hash: {}", hex::encode(torrent.info.pieces));
+        Parser::split_and_display_sha1_hashes(torrent.info.pieces);
     } else if command == "encode" {
         // let file_path = &args[2];
         let file_path = "examples/example_file.txt";
@@ -34,7 +34,8 @@ async fn main() -> Result<()> {
     } else if command == "peers" {
         let file_path = &args[2];
 
-        Discover::discover_peers(file_path).await?;
+        Peer::discover_peers(file_path).await?;
+    } else if command == "handshake" {
     } else {
         println!("unknown command: {}", args[1]);
     }

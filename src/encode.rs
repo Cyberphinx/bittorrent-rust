@@ -6,7 +6,7 @@ use std::{
 use eyre::Result;
 use sha1::{Digest, Sha1};
 
-use crate::{Info, RequestTorrent};
+use crate::{Info, TorrentRequest};
 
 pub struct Encoder;
 impl Encoder {
@@ -33,7 +33,7 @@ impl Encoder {
         };
 
         // Create the torrent
-        let torrent = RequestTorrent {
+        let torrent = TorrentRequest {
             info,
             announce_url: announce_url.to_string(),
         };
