@@ -35,10 +35,10 @@ impl fmt::Display for Peer {
 
 impl Peer {
     pub async fn discover_peers(
-        dictionary: HashMap<Vec<u8>, serde_bencode::value::Value>,
-    ) -> Result<()> {
-        let announce = Decoder::extract_string("announce", &dictionary)?;
-        let info = Decoder::extract_dict("info", &dictionary)?;
+        dictionary: &HashMap<Vec<u8>, serde_bencode::value::Value>,
+    ) -> Result<TrackerResponse> {
+        let announce = Decoder::extract_string("announce", dictionary)?;
+        let info = Decoder::extract_dict("info", dictionary)?;
 
         // Extract the info hash into &[u8] from the dictionary
         let info_hash_value = dictionary.get(b"info".as_ref()).context("no info")?;
@@ -59,20 +59,20 @@ impl Peer {
 
         if announce.starts_with("udp://") {
             // UDP protocol
-            Peer::query_udp_tracker(&announce, &request, &info_hash).await?;
+            let response = Peer::query_udp_tracker(&announce, &request, &info_hash).await?;
+            Ok(response)
         } else {
             // HTTP or HTTPS protocols
-            Peer::query_http_tracker(&announce, &url_params, &info_hash).await?;
+            let response = Peer::query_http_tracker(&announce, &url_params, &info_hash).await?;
+            Ok(response)
         }
-
-        Ok(())
     }
 
     async fn query_http_tracker(
         announce: &str,
         url_params: &str,
         info_hash: &[u8; 20],
-    ) -> Result<()> {
+    ) -> Result<TrackerResponse> {
         // URL-encode the byte array
         let url_encoded_info_hash: String = form_urlencoded::byte_serialize(info_hash).collect();
 
@@ -97,14 +97,14 @@ impl Peer {
         for peer in &response.peers.0 {
             println!("{}:{}", peer.ip(), peer.port());
         }
-        Ok(())
+        Ok(response)
     }
 
     async fn query_udp_tracker(
         announce: &str,
         _request: &TrackerRequest,
         _info_hash: &[u8; 20],
-    ) -> Result<()> {
+    ) -> Result<TrackerResponse> {
         let announce = announce.trim_start_matches("udp://");
         let parts: Vec<&str> = announce.split(':').collect();
         if parts.len() != 2 {
@@ -142,6 +142,6 @@ impl Peer {
 
         // Parse the connection response and proceed with announce request
 
-        Ok(())
+        todo!()
     }
 }

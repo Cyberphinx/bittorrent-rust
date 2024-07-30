@@ -3,6 +3,7 @@ use std::{
     net::{Ipv4Addr, SocketAddrV4},
 };
 
+use peers::Peer;
 use serde::{
     de::{self, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
@@ -113,5 +114,12 @@ impl Serialize for Peers {
         }
 
         serializer.serialize_bytes(&single_slice)
+    }
+}
+// Implement conversion from Peers to Peer
+impl From<Peers> for Peer {
+    fn from(peers: Peers) -> Self {
+        // Assuming we want the first peer in the list
+        Peer(peers.0.into_iter().next().expect("Peers list is empty"))
     }
 }

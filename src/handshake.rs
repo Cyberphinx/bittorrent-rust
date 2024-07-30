@@ -1,7 +1,10 @@
 use crate::{parse::Parser, peers::Peer};
 use eyre::{Context, ContextCompat, Result};
 use std::collections::HashMap;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+};
 
 #[repr(C)]
 pub struct Handshake {
@@ -24,9 +27,9 @@ impl Handshake {
     }
 
     pub async fn peer_handshake(
-        dictionary: HashMap<Vec<u8>, serde_bencode::value::Value>,
+        dictionary: &HashMap<Vec<u8>, serde_bencode::value::Value>,
         peer: Peer,
-    ) -> Result<()> {
+    ) -> Result<(TcpStream, Handshake)> {
         let info_hash_value = dictionary.get(b"info".as_ref()).context("no info")?;
         let info_hash = Parser::get_info_hash_array(info_hash_value)?;
 
@@ -42,7 +45,7 @@ impl Handshake {
             let handshake_bytes =
                 &mut handshake as *mut Handshake as *mut [u8; std::mem::size_of::<Handshake>()];
 
-            // Safety: Handshake is a POD with repr(c)
+            // Safety: Handshake is a POD (Plain Old Data) with repr(c)
 
             let handshake_bytes: &mut [u8; std::mem::size_of::<Handshake>()] =
                 unsafe { &mut *handshake_bytes };
@@ -62,6 +65,32 @@ impl Handshake {
 
         println!("Peer ID: {}", hex::encode(handshake.peer_id));
 
-        Ok(())
+        let mut peer = tokio_util::codec::Framed::new(peer, MessageFramer);
+
+        Ok((peer, handshake))
+    }
+
+    pub async fn get_handshake<'a>(
+        peer: &mut TcpStream,
+        handshake: &'a mut Handshake,
+    ) -> Result<&'a mut Handshake> {
+        {
+            let handshake_bytes =
+                handshake as *mut Handshake as *mut [u8; std::mem::size_of::<Handshake>()];
+
+            // Safety: Handshake is a POD with repr(c)
+
+            let handshake_bytes: &mut [u8; std::mem::size_of::<Handshake>()] =
+                unsafe { &mut *handshake_bytes };
+
+            peer.write_all(handshake_bytes)
+                .await
+                .context("write handshake")?;
+
+            peer.read_exact(handshake_bytes)
+                .await
+                .context("read handshake")?;
+        }
+        Ok(handshake)
     }
 }

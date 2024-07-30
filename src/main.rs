@@ -2,7 +2,8 @@ use eyre::Result;
 use std::env;
 
 use bittorrent_rust::{
-    decode::Decoder, encode::Encoder, handshake::Handshake, parse::Parser, peers::Peer,
+    decode::Decoder, downloader::Downloader, encode::Encoder, handshake::Handshake, parse::Parser,
+    peers::Peer,
 };
 
 #[tokio::main]
@@ -39,14 +40,30 @@ async fn main() -> Result<()> {
         "peers" => {
             let file_path = &args[2];
             let torrent_dict = Parser::read_torrent_file(file_path)?;
-            Peer::discover_peers(torrent_dict).await?;
+            Peer::discover_peers(&torrent_dict).await?;
         }
         "handshake" => {
             let file_path = &args[2];
             let peer_addr = &args[3];
             let peer = peer_addr.parse::<Peer>()?;
             let torrent_dict = Parser::read_torrent_file(file_path)?;
-            Handshake::peer_handshake(torrent_dict, peer).await?;
+            Handshake::peer_handshake(&torrent_dict, peer).await?;
+        }
+        "download_piece" => {
+            let output_path = &args[2];
+            let file_path = &args[3];
+            let piece = &args[3];
+            let torrent_dict = Parser::read_torrent_file(file_path)?;
+            let tracker_response = Peer::discover_peers(&torrent_dict).await?;
+            let (peer, handshake) =
+                Handshake::peer_handshake(&torrent_dict, tracker_response.peers.into()).await?;
+            Downloader::download_a_piece(
+                output_path,
+                &mut peer,
+                &torrent_dict,
+                &piece.parse::<i32>()?,
+            )
+            .await?;
         }
         _ => tracing::info!("unknown command: {}", args[1]),
     }
