@@ -55,9 +55,9 @@ async fn main() -> Result<()> {
             let piece = &args[3];
             let torrent_dict = Parser::read_torrent_file(file_path)?;
             let tracker_response = Peer::discover_peers(&torrent_dict).await?;
-            let (peer, handshake) =
+            let (mut peer, handshake) =
                 Handshake::peer_handshake(&torrent_dict, tracker_response.peers.into()).await?;
-            Downloader::download_a_piece(
+            Downloader::download(
                 output_path,
                 &mut peer,
                 &torrent_dict,

@@ -14,6 +14,7 @@ pub mod downloader;
 pub mod encode;
 pub mod handshake;
 pub mod parse;
+pub mod peer_message;
 pub mod peers;
 
 #[derive(Serialize, Deserialize, Debug)]

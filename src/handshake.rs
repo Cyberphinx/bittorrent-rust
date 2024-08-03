@@ -26,6 +26,13 @@ impl Handshake {
         }
     }
 
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+        let bytes = self as *mut Self as *mut [u8; std::mem::size_of::<Self>()];
+        // Safety: Handshake is a POD with repr(c)
+        let bytes: &mut [u8; std::mem::size_of::<Self>()] = unsafe { &mut *bytes };
+        bytes
+    }
+
     pub async fn peer_handshake(
         dictionary: &HashMap<Vec<u8>, serde_bencode::value::Value>,
         peer: Peer,
@@ -46,7 +53,6 @@ impl Handshake {
                 &mut handshake as *mut Handshake as *mut [u8; std::mem::size_of::<Handshake>()];
 
             // Safety: Handshake is a POD (Plain Old Data) with repr(c)
-
             let handshake_bytes: &mut [u8; std::mem::size_of::<Handshake>()] =
                 unsafe { &mut *handshake_bytes };
 
@@ -64,8 +70,6 @@ impl Handshake {
         assert_eq!(&handshake.bittorrent, b"BitTorrent protocol");
 
         println!("Peer ID: {}", hex::encode(handshake.peer_id));
-
-        let mut peer = tokio_util::codec::Framed::new(peer, MessageFramer);
 
         Ok((peer, handshake))
     }
