@@ -14,35 +14,90 @@ use crate::{
 pub struct Downloader;
 
 impl Downloader {
-    pub async fn download(
+    pub async fn download_a_piece(
         output_path: &str,
         peer: &mut TcpStream,
         torrent: &TorrentResponse,
-        piece: &i32,
+        piece_index: &i32,
     ) -> Result<()> {
+        // Receive "Bitfield" peer message and get the number of pieces
         let pieces = Downloader::get_pieces(peer).await?;
 
-        if pieces.contains(piece) {
-            let loaded_piece = Downloader::load_piece(peer, piece, torrent).await?;
+        if pieces.contains(piece_index) {
+            // Send "Interested" peer message
+            Downloader::send(peer, Message::new(MESSAGE::INTERESTED, vec![])).await?;
 
-            let hash_from_file = Downloader::get_piece_hash(*piece, torrent);
+            // receive "Unchoke" peer message
+            let unchoke = Downloader::receive(peer).await?;
+            assert_eq!(unchoke.id, MESSAGE::UNCHOKE);
 
-            let mut hasher = Sha1::new();
+            // Download the piece
+            let downloaded_piece = Downloader::download(peer, torrent, piece_index).await?;
 
-            hasher.update(&loaded_piece);
-
-            let real_hash: [u8; 20] = hasher.finalize().into();
-
-            assert_eq!(hash_from_file, real_hash);
-
+            // Write to file async
             let mut file = File::create(output_path).await.unwrap();
+            file.write_all(downloaded_piece.as_slice()).await.unwrap();
 
-            file.write_all(loaded_piece.as_slice()).await.unwrap();
-
-            println!("Piece {piece} downloaded to {output_path}.");
+            println!("Piece {piece_index} downloaded to {output_path}.");
         }
 
         Ok(())
+    }
+
+    pub async fn download_complete_pieces(
+        output_path: &str,
+        peer: &mut TcpStream,
+        torrent: &TorrentResponse,
+    ) -> Result<()> {
+        // Receive "Bitfield" peer message and get the number of pieces
+        let pieces = Downloader::get_pieces(peer).await?;
+        tracing::info!("Total pieces: {:#?}", &pieces);
+
+        // Send "Interested" peer message
+        Downloader::send(peer, Message::new(MESSAGE::INTERESTED, vec![])).await?;
+
+        // receive "Unchoke" peer message
+        let unchoke = Downloader::receive(peer).await?;
+        assert_eq!(unchoke.id, MESSAGE::UNCHOKE);
+
+        let mut complete_pieces = vec![];
+
+        // Download the pieces
+        for piece_index in 0..pieces.len() {
+            tracing::info!("Downloading piece {}/{}", piece_index + 1, pieces.len());
+            let piece_id = piece_index as i32;
+            let downloaded_piece = Downloader::download(peer, torrent, &piece_id).await?;
+            complete_pieces.push(downloaded_piece);
+            tracing::info!("Piece {}/{} downloaded", piece_id + 1, pieces.len());
+        }
+
+        // Write to file async
+        tracing::info!("Writing downloaded bytes to file at {}", output_path);
+        let mut file = File::create(output_path).await.unwrap();
+        let bytes = complete_pieces.concat();
+        file.write_all(bytes.as_slice()).await.unwrap();
+
+        Ok(())
+    }
+
+    async fn download(
+        peer: &mut TcpStream,
+        torrent: &TorrentResponse,
+        piece_id: &i32,
+    ) -> Result<Vec<u8>> {
+        let loaded_piece = Downloader::load_piece(peer, piece_id, torrent).await?;
+
+        let hash_from_file = Downloader::get_piece_hash(*piece_id, torrent);
+
+        let mut hasher = Sha1::new();
+
+        hasher.update(&loaded_piece);
+
+        let real_hash: [u8; 20] = hasher.finalize().into();
+
+        assert_eq!(hash_from_file, real_hash);
+
+        Ok(loaded_piece)
     }
 
     async fn get_pieces(peer: &mut TcpStream) -> Result<Vec<i32>> {
@@ -76,18 +131,17 @@ impl Downloader {
         index: &i32,
         torrent: &TorrentResponse,
     ) -> Result<Vec<u8>> {
-        Downloader::send(peer, Message::new(MESSAGE::INTERESTED, vec![])).await?;
+        // Downloader::send(peer, Message::new(MESSAGE::INTERESTED, vec![])).await?;
 
-        let unchoke = Downloader::receive(peer).await?;
-
-        assert_eq!(unchoke.id, MESSAGE::UNCHOKE);
+        // let unchoke = Downloader::receive(peer).await?;
+        // assert_eq!(unchoke.id, MESSAGE::UNCHOKE);
 
         // Get size of the piece
         let file_size = torrent.info.length as i32;
         let piece_len: i32 = torrent.info.piece_length as i32;
         let piece_size = piece_len.min(file_size - piece_len * index);
 
-        println!("Piece size: {piece_size}");
+        tracing::info!("Piece size: {piece_size}");
 
         // Break the piece into blocks of 16 kiB (16 * 1024 bytes)
         // and send a request message for each block
@@ -152,11 +206,13 @@ impl Downloader {
     }
 
     async fn send(peer: &mut TcpStream, message: Message) -> Result<()> {
+        tracing::info!("Sending peer message INTERESTED.");
         peer.write_all(message.to_bytes().as_slice()).await?;
         Ok(())
     }
 
     async fn receive(peer: &mut TcpStream) -> Result<Message> {
+        tracing::info!("Receiving peer message UNCHOKE");
         let prefix = Downloader::read_prefix(peer).await?;
         let id = Downloader::read_message_id(peer).await?;
         let payload = Downloader::read_payload(peer, prefix).await?;

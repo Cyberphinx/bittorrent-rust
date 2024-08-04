@@ -24,10 +24,10 @@ async fn main() -> Result<()> {
             let file_name = &args[2];
             let torrent_dict = Parser::read_torrent_file(file_name)?;
             let torrent = Parser::parse_torrent_file(&torrent_dict)?;
-            println!("Tracker URL: {}", torrent.announce_url);
-            println!("Length: {}", torrent.info.length);
-            println!("Info Hash: {}", torrent.hash);
-            println!("Piece Length: {}", torrent.info.piece_length);
+            tracing::info!("Tracker URL: {}", torrent.announce_url);
+            tracing::info!("Length: {}", torrent.info.length);
+            tracing::info!("Info Hash: {}", torrent.hash);
+            tracing::info!("Piece Length: {}", torrent.info.piece_length);
             Parser::split_and_display_sha1_hashes(torrent.info.pieces);
         }
         "encode" => {
@@ -52,19 +52,30 @@ async fn main() -> Result<()> {
         "download_piece" => {
             let output_path = &args[2];
             let file_path = &args[3];
-            let piece = &args[4];
+            let piece_index = &args[4];
             let torrent_dict = Parser::read_torrent_file(file_path)?;
             let torrent_file = Parser::parse_torrent_file(&torrent_dict)?;
             let tracker_response = Peer::discover_peers(&torrent_dict).await?;
             let (mut peer, _handshake) =
                 Handshake::peer_handshake(&torrent_dict, tracker_response.peers.into()).await?;
-            Downloader::download(
+            Downloader::download_a_piece(
                 output_path,
                 &mut peer,
                 &torrent_file,
-                &piece.parse::<i32>()?,
+                &piece_index.parse::<i32>()?,
             )
             .await?;
+        }
+        "download" => {
+            let output_path = &args[2];
+            let file_path = &args[3];
+            let torrent_dict = Parser::read_torrent_file(file_path)?;
+            let torrent_file = Parser::parse_torrent_file(&torrent_dict)?;
+            let tracker_response = Peer::discover_peers(&torrent_dict).await?;
+            let (mut peer, _handshake) =
+                Handshake::peer_handshake(&torrent_dict, tracker_response.peers.into()).await?;
+            Downloader::download_complete_pieces(output_path, &mut peer, &torrent_file).await?;
+            tracing::info!("Downloaded {} to {}", file_path, output_path);
         }
         _ => tracing::info!("unknown command: {}", args[1]),
     }
