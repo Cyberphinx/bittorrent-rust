@@ -38,6 +38,8 @@ impl Downloader {
             let mut file = File::create(output_path).await.unwrap();
 
             file.write_all(loaded_piece.as_slice()).await.unwrap();
+
+            println!("Piece {piece} downloaded to {output_path}.");
         }
 
         Ok(())
