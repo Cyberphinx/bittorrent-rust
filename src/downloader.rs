@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-
 use eyre::Result;
+use sha1::{Digest, Sha1};
 use tokio::{
+    fs::File,
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
@@ -17,27 +17,27 @@ impl Downloader {
     pub async fn download(
         output_path: &str,
         peer: &mut TcpStream,
-        dictionary: &HashMap<Vec<u8>, serde_bencode::value::Value>,
+        torrent: &TorrentResponse,
         piece: &i32,
     ) -> Result<()> {
         let pieces = Downloader::get_pieces(peer).await?;
 
         if pieces.contains(piece) {
-            // let piece = self.load_piece(i_piece, &torrent).await?;
+            let loaded_piece = Downloader::load_piece(peer, piece, torrent).await?;
 
-            // let hash_from_file = tracker::get_piece_hash(i_piece, torrent);
+            let hash_from_file = Downloader::get_piece_hash(*piece, torrent);
 
-            // let mut hasher = Sha1::new();
+            let mut hasher = Sha1::new();
 
-            // hasher.update(&piece);
+            hasher.update(&loaded_piece);
 
-            // let real_hash: [u8; 20] = hasher.finalize().try_into().unwrap();
+            let real_hash: [u8; 20] = hasher.finalize().into();
 
-            // assert_eq!(hash_from_file, real_hash);
+            assert_eq!(hash_from_file, real_hash);
 
-            // let mut file = File::create(output).await.unwrap();
+            let mut file = File::create(output_path).await.unwrap();
 
-            // file.write_all(piece.as_slice()).await.unwrap();
+            file.write_all(loaded_piece.as_slice()).await.unwrap();
         }
 
         Ok(())
@@ -64,9 +64,14 @@ impl Downloader {
         Ok(pieces)
     }
 
+    pub fn get_piece_hash(piece: i32, torrent: &TorrentResponse) -> [u8; 20] {
+        let hashes: Vec<&[u8]> = torrent.info.pieces.chunks(20).collect();
+        hashes[piece as usize].try_into().unwrap()
+    }
+
     pub async fn load_piece(
         peer: &mut TcpStream,
-        index: i32,
+        index: &i32,
         torrent: &TorrentResponse,
     ) -> Result<Vec<u8>> {
         Downloader::send(peer, Message::new(MESSAGE::INTERESTED, vec![])).await?;
@@ -115,7 +120,7 @@ impl Downloader {
 
     async fn load_block(
         peer: &mut TcpStream,
-        index: i32,
+        index: &i32,
         begin: i32,
         length: i32,
     ) -> Result<Message> {

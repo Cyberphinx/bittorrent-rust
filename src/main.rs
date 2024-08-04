@@ -23,7 +23,7 @@ async fn main() -> Result<()> {
         "info" => {
             let file_name = &args[2];
             let torrent_dict = Parser::read_torrent_file(file_name)?;
-            let torrent = Parser::parse_torrent_file(torrent_dict)?;
+            let torrent = Parser::parse_torrent_file(&torrent_dict)?;
             println!("Tracker URL: {}", torrent.announce_url);
             println!("Length: {}", torrent.info.length);
             println!("Info Hash: {}", torrent.hash);
@@ -52,15 +52,16 @@ async fn main() -> Result<()> {
         "download_piece" => {
             let output_path = &args[2];
             let file_path = &args[3];
-            let piece = &args[3];
+            let piece = &args[4];
             let torrent_dict = Parser::read_torrent_file(file_path)?;
+            let torrent_file = Parser::parse_torrent_file(&torrent_dict)?;
             let tracker_response = Peer::discover_peers(&torrent_dict).await?;
-            let (mut peer, handshake) =
+            let (mut peer, _handshake) =
                 Handshake::peer_handshake(&torrent_dict, tracker_response.peers.into()).await?;
             Downloader::download(
                 output_path,
                 &mut peer,
-                &torrent_dict,
+                &torrent_file,
                 &piece.parse::<i32>()?,
             )
             .await?;

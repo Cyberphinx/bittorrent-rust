@@ -24,10 +24,10 @@ impl Parser {
     }
 
     pub fn parse_torrent_file(
-        dictionary: HashMap<Vec<u8>, serde_bencode::value::Value>,
+        dictionary: &HashMap<Vec<u8>, serde_bencode::value::Value>,
     ) -> Result<TorrentResponse> {
-        let announce = Decoder::extract_string("announce", &dictionary)?;
-        let info = Decoder::extract_dict("info", &dictionary)?;
+        let announce = Decoder::extract_string("announce", dictionary)?;
+        let info = Decoder::extract_dict("info", dictionary)?;
 
         let info_hash = dictionary.get(b"info".as_ref()).context("no info")?;
         let hash = hex::encode(Sha1::digest(serde_bencode::to_bytes(info_hash)?));
@@ -78,7 +78,7 @@ mod tests {
     fn parse_single_file_torrent() {
         let file_path = "sample.torrent";
         let torrent_dict = Parser::read_torrent_file(file_path).unwrap();
-        let decoded_value = Parser::parse_torrent_file(torrent_dict).unwrap();
+        let decoded_value = Parser::parse_torrent_file(&torrent_dict).unwrap();
         assert_eq!(
             decoded_value.announce_url,
             "http://bittorrent-test-tracker.codecrafters.io/announce"

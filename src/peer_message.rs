@@ -52,6 +52,13 @@ impl TryFrom<u8> for MESSAGE {
     type Error = eyre::Error;
 
     fn try_from(value: u8) -> Result<Self> {
-        Err(eyre!("Invalid message ID: {value}"))
+        match value {
+            1 => Ok(MESSAGE::UNCHOKE),
+            2 => Ok(MESSAGE::INTERESTED),
+            5 => Ok(MESSAGE::BITFIELD),
+            6 => Ok(MESSAGE::REQUEST),
+            7 => Ok(MESSAGE::PIECE),
+            _ => Err(eyre!("Invalid message ID: {value}")),
+        }
     }
 }
